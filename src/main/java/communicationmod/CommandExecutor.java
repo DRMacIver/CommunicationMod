@@ -78,6 +78,9 @@ public class CommandExecutor {
             case "wait":
                 executeWaitCommand(tokens);
                 return true;
+            case "abandon":
+                executeAbandonCommand();
+                return true;
 
             default:
                 logger.info("This should never happen.");
@@ -112,6 +115,7 @@ public class CommandExecutor {
             availableCommands.add("key");
             availableCommands.add("click");
             availableCommands.add("wait");
+            availableCommands.add("abandon");
         }
         availableCommands.add("state");
         return availableCommands;
@@ -582,6 +586,15 @@ public class CommandExecutor {
         return builder.toString();
     }
 
-
+    private static void executeAbandonCommand() {
+        // Abandon the current run and return to main menu
+        // This mimics what happens when clicking "Abandon Run" or returning from death/victory screen
+        AbstractDungeon.unlocks.clear();
+        Settings.isTrial = false;
+        Settings.isDailyRun = false;
+        Settings.isEndless = false;
+        CardCrawlGame.trial = null;
+        CardCrawlGame.startOver();
+    }
 
 }

@@ -53,7 +53,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.4.2</version>
+                <version>3.5.1</version>
                 <executions>
                     <execution>
                         <id>CommunicationMod</id>
@@ -88,7 +88,8 @@
                         <phase>package</phase>
                         <configuration>
                             <target>
-                                <copy file="target/CommunicationMod.jar" tofile="../_ModTheSpire/mods/CommunicationMod.jar"/>
+                                <!-- Copy to lib for headless testing -->
+                                <copy file="target/CommunicationMod.jar" tofile="../lib/CommunicationMod.jar" failonerror="false"/>
                             </target>
                         </configuration>
                         <goals>
