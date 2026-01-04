@@ -149,9 +149,15 @@ public class GameStateListener {
                 }
                 break;
             case MAIN_MENU:
-                // Waiting for main menu = waiting for not in dungeon and main menu screen exists
-                // Don't require CHAR_SELECT mode as the game may be in transition
-                conditionMet = !CommandExecutor.isInDungeon() && CardCrawlGame.mainMenuScreen != null;
+                // Waiting for main menu = not in dungeon AND either:
+                // 1. In CHAR_SELECT mode with mainMenuScreen visible, OR
+                // 2. Game mode is null/SPLASH (transitioning but definitely not in dungeon)
+                // This allows detecting return to menu during transitions
+                boolean notInDungeon = !CommandExecutor.isInDungeon();
+                boolean atCharSelect = CardCrawlGame.mode == CardCrawlGame.GameMode.CHAR_SELECT
+                    && CardCrawlGame.mainMenuScreen != null;
+                boolean atSplash = CardCrawlGame.mode == CardCrawlGame.GameMode.SPLASH;
+                conditionMet = notInDungeon && (atCharSelect || atSplash);
                 break;
         }
 
