@@ -128,10 +128,20 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
     }
 
     public void receivePostUpdate() {
-        if(!mustSendGameState && GameStateListener.checkForMenuStateChange()) {
+        // If waiting for a specific condition, check it but don't let regular state changes interfere
+        if (GameStateListener.isWaitingForCondition()) {
+            if (GameStateListener.checkWaitConditionMet()) {
+                mustSendGameState = true;
+            }
+            // Note: explicit 'state' commands set mustSendGameState=true directly,
+            // so they still work even while waiting (we don't suppress them)
+        } else if (!mustSendGameState && GameStateListener.checkForMenuStateChange()) {
             mustSendGameState = true;
         }
+
         if(mustSendGameState) {
+            // Clear wait condition if we're sending state (for any reason including explicit 'state' command)
+            GameStateListener.clearWaitCondition();
             publishOnGameStateChange();
             mustSendGameState = false;
         }
@@ -139,9 +149,16 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
     }
 
     public void receivePostDungeonUpdate() {
-        if (GameStateListener.checkForDungeonStateChange()) {
+        // If waiting for a specific condition, ONLY check that condition
+        // Don't let regular state changes interfere
+        if (GameStateListener.isWaitingForCondition()) {
+            if (GameStateListener.checkWaitConditionMet()) {
+                mustSendGameState = true;
+            }
+        } else if (GameStateListener.checkForDungeonStateChange()) {
             mustSendGameState = true;
         }
+
         if(AbstractDungeon.getCurrRoom().isBattleOver) {
             GameStateListener.signalTurnEnd();
         }

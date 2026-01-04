@@ -5,6 +5,7 @@ import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.neow.NeowRoom;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
+import com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase;
 import com.megacrit.cardcrawl.rooms.EventRoom;
 import com.megacrit.cardcrawl.rooms.VictoryRoom;
 
@@ -21,6 +22,16 @@ public class GameStateListener {
     private static boolean hasPresentedOutOfGameState = false;
     private static boolean waitOneUpdate = false;
     private static int timeout = 0;
+
+    // Wait condition tracking
+    public enum WaitCondition {
+        NONE,           // Not waiting for anything
+        IN_GAME,        // Waiting for in_game == targetValue
+        IN_COMBAT,      // Waiting for in_combat == targetValue
+        MAIN_MENU       // Waiting for main menu (in_game == false)
+    }
+    private static WaitCondition waitCondition = WaitCondition.NONE;
+    private static boolean waitConditionTargetValue = false;
 
     /**
      * Used to indicate that something (in game logic, not external command) has been done that will change the game state,
@@ -89,6 +100,75 @@ public class GameStateListener {
         blocked = false;
         waitingForCommand = false;
         waitOneUpdate = false;
+        waitCondition = WaitCondition.NONE;
+        waitConditionTargetValue = false;
+    }
+
+    /**
+     * Sets a wait condition. The game will send a state update when the condition is met.
+     * @param condition The condition to wait for
+     * @param targetValue The target value for the condition
+     */
+    public static void setWaitCondition(WaitCondition condition, boolean targetValue) {
+        waitCondition = condition;
+        waitConditionTargetValue = targetValue;
+        waitingForCommand = false; // Not ready until condition is met
+    }
+
+    /**
+     * Clears any active wait condition.
+     */
+    public static void clearWaitCondition() {
+        waitCondition = WaitCondition.NONE;
+        waitConditionTargetValue = false;
+    }
+
+    /**
+     * Checks if a wait condition is active and whether it's now satisfied.
+     * @return true if there was a wait condition and it's now met
+     */
+    public static boolean checkWaitConditionMet() {
+        if (waitCondition == WaitCondition.NONE) {
+            return false;
+        }
+
+        boolean conditionMet = false;
+
+        switch (waitCondition) {
+            case IN_GAME:
+                boolean currentlyInGame = CommandExecutor.isInDungeon();
+                conditionMet = (currentlyInGame == waitConditionTargetValue);
+                break;
+            case IN_COMBAT:
+                if (CommandExecutor.isInDungeon()) {
+                    boolean inCombat = AbstractDungeon.getCurrRoom().phase == AbstractRoom.RoomPhase.COMBAT;
+                    conditionMet = (inCombat == waitConditionTargetValue);
+                } else {
+                    // If not in dungeon and waiting for in_combat=false, that's satisfied
+                    conditionMet = !waitConditionTargetValue;
+                }
+                break;
+            case MAIN_MENU:
+                // Waiting for main menu = waiting for not in dungeon and main menu screen exists
+                // Don't require CHAR_SELECT mode as the game may be in transition
+                conditionMet = !CommandExecutor.isInDungeon() && CardCrawlGame.mainMenuScreen != null;
+                break;
+        }
+
+        if (conditionMet) {
+            waitCondition = WaitCondition.NONE;
+            waitConditionTargetValue = false;
+            waitingForCommand = true;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @return true if we're currently waiting for a condition
+     */
+    public static boolean isWaitingForCondition() {
+        return waitCondition != WaitCondition.NONE;
     }
 
     /**

@@ -105,6 +105,9 @@ public class CommandExecutor {
             case "abandon":
                 executeAbandonCommand();
                 return true;
+            case "wait_for":
+                executeWaitForCommand(tokens);
+                return false; // Don't register command execution - waiting for condition
 
             default:
                 // Check registered extensions
@@ -148,6 +151,8 @@ public class CommandExecutor {
             availableCommands.add("wait");
             availableCommands.add("abandon");
         }
+        // wait_for is always available
+        availableCommands.add("wait_for");
         // Add commands from registered extensions
         for (CommandExtension ext : extensions) {
             if (ext.isAvailable()) {
@@ -632,6 +637,65 @@ public class CommandExecutor {
         Settings.isEndless = false;
         CardCrawlGame.trial = null;
         CardCrawlGame.startOver();
+    }
+
+    /**
+     * Waits for a specific condition to be met before sending the next state update.
+     * Usage: wait_for <condition> <value>
+     * Conditions:
+     *   in_game true|false - wait until in/out of a dungeon
+     *   in_combat true|false - wait until in/out of combat
+     *   main_menu - wait until at main menu (equivalent to in_game false)
+     *
+     * If the condition is already met, sends state immediately.
+     */
+    private static void executeWaitForCommand(String[] tokens) throws InvalidCommandException {
+        if (tokens.length < 2) {
+            throw new InvalidCommandException(tokens, InvalidCommandException.InvalidCommandFormat.MISSING_ARGUMENT,
+                " Expected: wait_for <condition> [value]");
+        }
+
+        String condition = tokens[1].toLowerCase();
+        boolean targetValue = true;
+
+        // Parse optional value argument
+        if (tokens.length >= 3) {
+            String valueStr = tokens[2].toLowerCase();
+            if (valueStr.equals("true") || valueStr.equals("1") || valueStr.equals("yes")) {
+                targetValue = true;
+            } else if (valueStr.equals("false") || valueStr.equals("0") || valueStr.equals("no")) {
+                targetValue = false;
+            } else {
+                throw new InvalidCommandException(tokens, InvalidCommandException.InvalidCommandFormat.INVALID_ARGUMENT,
+                    tokens[2] + " - expected true/false");
+            }
+        }
+
+        GameStateListener.WaitCondition waitCondition;
+        switch (condition) {
+            case "in_game":
+                waitCondition = GameStateListener.WaitCondition.IN_GAME;
+                break;
+            case "in_combat":
+                waitCondition = GameStateListener.WaitCondition.IN_COMBAT;
+                break;
+            case "main_menu":
+                waitCondition = GameStateListener.WaitCondition.MAIN_MENU;
+                targetValue = true; // main_menu doesn't take a value
+                break;
+            default:
+                throw new InvalidCommandException(tokens, InvalidCommandException.InvalidCommandFormat.INVALID_ARGUMENT,
+                    condition + " - valid conditions: in_game, in_combat, main_menu");
+        }
+
+        // Set the wait condition
+        GameStateListener.setWaitCondition(waitCondition, targetValue);
+
+        // Check if the condition is already met - if so, send state immediately
+        if (GameStateListener.checkWaitConditionMet()) {
+            CommunicationMod.mustSendGameState = true;
+        }
+        // Otherwise, state will be sent when condition becomes true (checked in update loop)
     }
 
 }
