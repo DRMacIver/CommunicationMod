@@ -30,6 +30,30 @@ public class CommandExecutor {
 
     private static final Logger logger = LogManager.getLogger(CommandExecutor.class.getName());
 
+    // Extension system for mods to register custom commands
+    private static final ArrayList<CommandExtension> extensions = new ArrayList<>();
+
+    /**
+     * Interface for mods to register custom commands with CommunicationMod.
+     */
+    public interface CommandExtension {
+        /** The command name (lowercase, no spaces). */
+        String getCommandName();
+        /** Whether the command is currently available. */
+        boolean isAvailable();
+        /** Execute the command. Tokens[0] is the command name. */
+        void execute(String[] tokens) throws InvalidCommandException;
+    }
+
+    /**
+     * Register a custom command extension.
+     * Call this during mod initialization (e.g., in receivePostInitialize).
+     */
+    public static void registerCommand(CommandExtension extension) {
+        extensions.add(extension);
+        logger.info("Registered command extension: " + extension.getCommandName());
+    }
+
     public static boolean executeCommand(String command) throws InvalidCommandException {
         command = command.toLowerCase();
         String [] tokens = command.split("\\s+");
@@ -83,6 +107,13 @@ public class CommandExecutor {
                 return true;
 
             default:
+                // Check registered extensions
+                for (CommandExtension ext : extensions) {
+                    if (ext.getCommandName().equals(tokens[0]) && ext.isAvailable()) {
+                        ext.execute(tokens);
+                        return true;
+                    }
+                }
                 logger.info("This should never happen.");
                 throw new InvalidCommandException("Command not recognized.");
         }
@@ -116,6 +147,12 @@ public class CommandExecutor {
             availableCommands.add("click");
             availableCommands.add("wait");
             availableCommands.add("abandon");
+        }
+        // Add commands from registered extensions
+        for (CommandExtension ext : extensions) {
+            if (ext.isAvailable()) {
+                availableCommands.add(ext.getCommandName());
+            }
         }
         availableCommands.add("state");
         return availableCommands;
