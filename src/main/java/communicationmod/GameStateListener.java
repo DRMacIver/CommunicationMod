@@ -28,7 +28,8 @@ public class GameStateListener {
         NONE,           // Not waiting for anything
         IN_GAME,        // Waiting for in_game == targetValue
         IN_COMBAT,      // Waiting for in_combat == targetValue
-        MAIN_MENU       // Waiting for main menu (in_game == false)
+        MAIN_MENU,      // Waiting for main menu (in_game == false)
+        VISUAL_STABLE   // Waiting for visual effects to complete
     }
     private static WaitCondition waitCondition = WaitCondition.NONE;
     private static boolean waitConditionTargetValue = false;
@@ -159,6 +160,11 @@ public class GameStateListener {
                 boolean atSplash = CardCrawlGame.mode == CardCrawlGame.GameMode.SPLASH;
                 conditionMet = notInDungeon && (atCharSelect || atSplash);
                 break;
+            case VISUAL_STABLE:
+                // Wait for visual effects to complete (no fading, no effects playing)
+                // This is useful for screenshot capture and visual verification
+                conditionMet = areVisualEffectsStable();
+                break;
         }
 
         if (conditionMet) {
@@ -175,6 +181,43 @@ public class GameStateListener {
      */
     public static boolean isWaitingForCondition() {
         return waitCondition != WaitCondition.NONE;
+    }
+
+    /**
+     * Checks if visual effects have completed and the screen is stable.
+     * This includes checking:
+     * - No fading in/out
+     * - Effect lists are empty (no animations playing)
+     * - Room wait timer is zero
+     *
+     * @return true if visual effects are stable
+     */
+    public static boolean areVisualEffectsStable() {
+        // Check for fading
+        if (AbstractDungeon.isFadingIn || AbstractDungeon.isFadingOut) {
+            return false;
+        }
+
+        // Check for visual effects in progress
+        if (AbstractDungeon.effectList != null && !AbstractDungeon.effectList.isEmpty()) {
+            return false;
+        }
+        if (AbstractDungeon.effectsQueue != null && !AbstractDungeon.effectsQueue.isEmpty()) {
+            return false;
+        }
+        if (AbstractDungeon.topLevelEffects != null && !AbstractDungeon.topLevelEffects.isEmpty()) {
+            return false;
+        }
+        if (AbstractDungeon.topLevelEffectsQueue != null && !AbstractDungeon.topLevelEffectsQueue.isEmpty()) {
+            return false;
+        }
+
+        // Check room wait timer
+        if (AbstractRoom.waitTimer > 0) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

@@ -88,8 +88,8 @@
                         <phase>package</phase>
                         <configuration>
                             <target>
-                                <!-- Copy to lib for headless testing -->
-                                <copy file="target/CommunicationMod.jar" tofile="../lib/CommunicationMod.jar" failonerror="false"/>
+                                <!-- Copy to root lib/ for acceptance testing -->
+                                <copy file="target/CommunicationMod.jar" tofile="../../lib/CommunicationMod.jar" failonerror="false"/>
                             </target>
                         </configuration>
                         <goals>

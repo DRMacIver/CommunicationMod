@@ -646,6 +646,7 @@ public class CommandExecutor {
      *   in_game true|false - wait until in/out of a dungeon
      *   in_combat true|false - wait until in/out of combat
      *   main_menu - wait until at main menu (equivalent to in_game false)
+     *   visual_stable - wait until visual effects complete (no fading, no effects playing)
      *
      * If the condition is already met, sends state immediately.
      */
@@ -683,9 +684,13 @@ public class CommandExecutor {
                 waitCondition = GameStateListener.WaitCondition.MAIN_MENU;
                 targetValue = true; // main_menu doesn't take a value
                 break;
+            case "visual_stable":
+                waitCondition = GameStateListener.WaitCondition.VISUAL_STABLE;
+                targetValue = true; // visual_stable doesn't take a value
+                break;
             default:
                 throw new InvalidCommandException(tokens, InvalidCommandException.InvalidCommandFormat.INVALID_ARGUMENT,
-                    condition + " - valid conditions: in_game, in_combat, main_menu");
+                    condition + " - valid conditions: in_game, in_combat, main_menu, visual_stable");
         }
 
         // Set the wait condition
