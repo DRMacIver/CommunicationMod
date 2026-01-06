@@ -8,8 +8,11 @@ import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase;
 import com.megacrit.cardcrawl.rooms.EventRoom;
 import com.megacrit.cardcrawl.rooms.VictoryRoom;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class GameStateListener {
+    private static final Logger logger = LogManager.getLogger(GameStateListener.class.getName());
     private static AbstractDungeon.CurrentScreen previousScreen = null;
     private static boolean previousScreenUp = false;
     private static AbstractRoom.RoomPhase previousPhase = null;
@@ -223,26 +226,36 @@ public class GameStateListener {
         if (CommandExecutor.isInDungeon()) {
             // Check for dungeon fading
             if (AbstractDungeon.isFadingIn || AbstractDungeon.isFadingOut) {
+                logger.info("Visual stability blocked: isFadingIn=" + AbstractDungeon.isFadingIn + " isFadingOut=" + AbstractDungeon.isFadingOut);
                 return false;
             }
 
-            // Check fade timer (covers transitions the flags might miss)
-            if (AbstractDungeon.fadeTimer > 0) {
-                return false;
+            // Check fade timer via reflection (it's protected)
+            try {
+                java.lang.reflect.Field fadeTimerField = AbstractDungeon.class.getDeclaredField("fadeTimer");
+                fadeTimerField.setAccessible(true);
+                float fadeTimer = fadeTimerField.getFloat(null);
+                if (fadeTimer > 0) {
+                    logger.info("Visual stability blocked: fadeTimer=" + fadeTimer);
+                    return false;
+                }
+            } catch (Exception e) {
+                // If reflection fails, fall through to other checks
+                logger.info("Visual stability: fadeTimer reflection failed: " + e.getMessage());
             }
 
             // Check for screen swap in progress
             if (AbstractDungeon.screenSwap) {
+                logger.info("Visual stability blocked: screenSwap=true");
                 return false;
             }
 
-            // Check if waiting on fade out
-            if (AbstractDungeon.waitingOnFadeOut) {
-                return false;
-            }
+            // Note: We intentionally don't check waitingOnFadeOut because it can stay
+            // true indefinitely in some states. The isFadingIn/Out flags are sufficient.
 
             // Check room wait timer
             if (AbstractRoom.waitTimer > 0) {
+                logger.info("Visual stability blocked: AbstractRoom.waitTimer=" + AbstractRoom.waitTimer);
                 return false;
             }
 
@@ -252,6 +265,7 @@ public class GameStateListener {
                 if ((currentRoom instanceof EventRoom || currentRoom instanceof NeowRoom)
                         && currentRoom.event != null
                         && currentRoom.event.waitTimer > 0) {
+                    logger.info("Visual stability blocked: event.waitTimer=" + currentRoom.event.waitTimer);
                     return false;
                 }
             }
@@ -259,9 +273,11 @@ public class GameStateListener {
 
         // Check CardCrawlGame screen timer (applies both in and out of dungeon)
         if (CardCrawlGame.screenTimer > 0) {
+            logger.info("Visual stability blocked: CardCrawlGame.screenTimer=" + CardCrawlGame.screenTimer);
             return false;
         }
 
+        logger.info("Visual stability: all checks passed, stable!");
         return true;
     }
 
