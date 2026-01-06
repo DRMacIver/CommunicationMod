@@ -292,18 +292,22 @@ public class GameStateListener {
             // Note: We intentionally don't check waitingOnFadeOut because it can stay
             // true indefinitely in some states. The isFadingIn/Out flags are sufficient.
 
-            // Check room wait timer
-            if (AbstractRoom.waitTimer > 0) {
+            // Check room wait timer - allow very small values (< 100ms) to avoid blocking
+            // on timers that should naturally tick down in a few frames. This fixes issues
+            // where the timer hovers at a small value in certain game states (e.g., after
+            // starting a new run while sitting in Neow's room).
+            if (AbstractRoom.waitTimer > 0.1f) {
                 logger.info("Visual stability blocked: AbstractRoom.waitTimer=" + AbstractRoom.waitTimer);
                 return false;
             }
 
             // Check if current room exists and has an event with wait timer
+            // Same as above: allow small values (< 100ms) to pass through
             AbstractRoom currentRoom = AbstractDungeon.getCurrRoom();
             if (currentRoom != null) {
                 if ((currentRoom instanceof EventRoom || currentRoom instanceof NeowRoom)
                         && currentRoom.event != null
-                        && currentRoom.event.waitTimer > 0) {
+                        && currentRoom.event.waitTimer > 0.1f) {
                     logger.info("Visual stability blocked: event.waitTimer=" + currentRoom.event.waitTimer);
                     return false;
                 }
