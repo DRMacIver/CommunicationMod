@@ -44,6 +44,9 @@ public class GameStateListener {
     // Error message to include in next response (cleared after sending)
     private static String lastError = null;
 
+    // Force ready_for_command=true on next state send (for commands like arena_back)
+    private static boolean forceReadyOnNextSend = false;
+
     /**
      * Used to indicate that something (in game logic, not external command) has been done that will change the game state,
      * and hasStateChanged() should indicate a state change when the state next becomes stable.
@@ -98,6 +101,19 @@ public class GameStateListener {
     }
 
     /**
+     * Signals that the game should report ready_for_command=true on the next state send.
+     * Used by command extensions that need to force a state response
+     * even when no detectable state change has occurred.
+     *
+     * This is different from directly setting waitingForCommand because that flag
+     * gets reset by registerCommandExecution() after command execution completes.
+     * This flag persists until the state is actually sent.
+     */
+    public static void signalReadyForCommand() {
+        forceReadyOnNextSend = true;
+    }
+
+    /**
      * Resets all state detection variables for the start of a new run.
      */
     public static void resetStateVariables() {
@@ -113,6 +129,7 @@ public class GameStateListener {
         waitOneUpdate = false;
         waitCondition = WaitCondition.NONE;
         waitConditionTargetValue = false;
+        forceReadyOnNextSend = false;
     }
 
     /**
@@ -504,6 +521,11 @@ public class GameStateListener {
     }
 
     public static boolean isWaitingForCommand() {
+        // Check if a command requested forced ready state (e.g., arena_back)
+        if (forceReadyOnNextSend) {
+            forceReadyOnNextSend = false;  // Consume the flag
+            return true;
+        }
         return waitingForCommand;
     }
 }
