@@ -211,10 +211,13 @@ public class GameStateListener {
     /**
      * Checks if visual effects have completed and the screen is stable.
      * This checks for common transition indicators:
+     * - Game mode is in a stable state (GAMEPLAY or at main menu)
+     * - Not loading a save file
      * - No fading in/out (AbstractDungeon flags and fadeTimer)
      * - No screen swap in progress
      * - Room wait timer is zero
      * - CardCrawlGame screen timer is zero
+     * - Main menu not fading
      *
      * Note: We don't check if effect lists are empty because there are always
      * ambient effects (particles, lighting) playing during normal gameplay.
@@ -222,6 +225,25 @@ public class GameStateListener {
      * @return true if visual effects are stable
      */
     public static boolean areVisualEffectsStable() {
+        // Check if the game is in a true transitional mode (SPLASH only)
+        // Note: CHAR_SELECT is the normal main menu state, so we don't block on it
+        CardCrawlGame.GameMode mode = CardCrawlGame.mode;
+        if (mode == CardCrawlGame.GameMode.SPLASH) {
+            logger.info("Visual stability blocked: CardCrawlGame.mode=" + mode);
+            return false;
+        }
+
+        // Check if we're loading a save (transition in progress)
+        // This catches the CHAR_SELECT -> GAMEPLAY transition
+        if (CardCrawlGame.loadingSave) {
+            logger.info("Visual stability blocked: CardCrawlGame.loadingSave=true");
+            return false;
+        }
+
+        // Note: We intentionally don't check mainMenuScreen.isFadingOut because it can
+        // stay true for extended periods during transitions. The loadingSave and mode
+        // checks above are sufficient to catch actual transitions.
+
         // Check if we're in a dungeon - different checks apply
         if (CommandExecutor.isInDungeon()) {
             // Check for dungeon fading
