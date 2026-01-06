@@ -16,7 +16,6 @@ import communicationmod.patches.InputActionPatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.ProcessBuilder;
 import java.util.ArrayList;
@@ -36,6 +35,7 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
     private static Thread writeThread;
     private static BlockingQueue<String> writeQueue;
     private static Thread readThread;
+    private static Thread errorThread;
     private static BlockingQueue<String> readQueue;
     private static final String MODNAME = "Communication Mod";
     private static final String AUTHOR = "Forgotten Arbiter";
@@ -88,6 +88,7 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
             logger.info("Child process has died...");
             writeThread.interrupt();
             readThread.interrupt();
+            if (errorThread != null) errorThread.interrupt();
         }
         if(messageAvailable()) {
             try {
@@ -242,6 +243,9 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
         writeThread.start();
         readThread = new Thread(new DataReader(readQueue, listener.getInputStream(), getVerbosityOption()));
         readThread.start();
+        // Start error logging thread to capture subprocess stderr in game logs
+        errorThread = new Thread(new ErrorLogger(listener.getErrorStream()));
+        errorThread.start();
     }
 
     private static void sendGameState() {
@@ -324,6 +328,9 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
         if(writeThread != null) {
             writeThread.interrupt();
         }
+        if(errorThread != null) {
+            errorThread.interrupt();
+        }
         if(listener != null) {
             listener.destroy();
             try {
@@ -337,8 +344,7 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
             }
         }
         ProcessBuilder builder = new ProcessBuilder(getSubprocessCommand());
-        File errorLog = new File("communication_mod_errors.log");
-        builder.redirectError(ProcessBuilder.Redirect.appendTo(errorLog));
+        // Note: stderr is now read by errorThread and logged, not redirected to a file
         try {
             listener = builder.start();
         } catch (IOException e) {
@@ -354,9 +360,10 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
                 // The child process waited too long to respond, so we kill it.
                 readThread.interrupt();
                 writeThread.interrupt();
+                if (errorThread != null) errorThread.interrupt();
                 listener.destroy();
                 logger.error("Timed out while waiting for signal from external process.");
-                logger.error("Check communication_mod_errors.log for stderr from the process.");
+                logger.error("Check game logs for subprocess stderr output.");
                 return false;
             } else {
                 logger.info(String.format("Received message from external process: %s", message));
