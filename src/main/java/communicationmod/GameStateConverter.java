@@ -57,6 +57,11 @@ public class GameStateConverter {
         if(isInGame) {
             response.put("game_state", getGameState());
         }
+        // Include error if present
+        String error = GameStateListener.getAndClearError();
+        if (error != null) {
+            response.put("error", error);
+        }
         Gson gson = new Gson();
         return gson.toJson(response);
     }

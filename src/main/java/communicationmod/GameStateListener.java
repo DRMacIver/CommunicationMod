@@ -34,6 +34,13 @@ public class GameStateListener {
     private static WaitCondition waitCondition = WaitCondition.NONE;
     private static boolean waitConditionTargetValue = false;
 
+    // Timeout tracking for visual stability wait
+    private static long visualStableWaitStartTime = 0;
+    private static final long VISUAL_STABLE_TIMEOUT_MS = 30000; // 30 seconds
+
+    // Error message to include in next response (cleared after sending)
+    private static String lastError = null;
+
     /**
      * Used to indicate that something (in game logic, not external command) has been done that will change the game state,
      * and hasStateChanged() should indicate a state change when the state next becomes stable.
@@ -114,6 +121,11 @@ public class GameStateListener {
         waitCondition = condition;
         waitConditionTargetValue = targetValue;
         waitingForCommand = false; // Not ready until condition is met
+
+        // Start timeout timer for VISUAL_STABLE
+        if (condition == WaitCondition.VISUAL_STABLE) {
+            startVisualStableWait();
+        }
     }
 
     /**
@@ -163,7 +175,17 @@ public class GameStateListener {
             case VISUAL_STABLE:
                 // Wait for visual effects to complete (no fading, no effects playing)
                 // This is useful for screenshot capture and visual verification
-                conditionMet = areVisualEffectsStable();
+                if (hasVisualStableWaitTimedOut()) {
+                    // Timeout - report error and proceed
+                    setError("Timeout waiting for visual stability after 30 seconds");
+                    clearVisualStableWait();
+                    conditionMet = true;
+                } else {
+                    conditionMet = areVisualEffectsStable();
+                    if (conditionMet) {
+                        clearVisualStableWait();
+                    }
+                }
                 break;
         }
 
@@ -185,39 +207,111 @@ public class GameStateListener {
 
     /**
      * Checks if visual effects have completed and the screen is stable.
-     * This includes checking:
-     * - No fading in/out
-     * - Effect lists are empty (no animations playing)
+     * This checks for common transition indicators:
+     * - No fading in/out (AbstractDungeon flags and fadeTimer)
+     * - No screen swap in progress
      * - Room wait timer is zero
+     * - CardCrawlGame screen timer is zero
+     *
+     * Note: We don't check if effect lists are empty because there are always
+     * ambient effects (particles, lighting) playing during normal gameplay.
      *
      * @return true if visual effects are stable
      */
     public static boolean areVisualEffectsStable() {
-        // Check for fading
-        if (AbstractDungeon.isFadingIn || AbstractDungeon.isFadingOut) {
-            return false;
+        // Check if we're in a dungeon - different checks apply
+        if (CommandExecutor.isInDungeon()) {
+            // Check for dungeon fading
+            if (AbstractDungeon.isFadingIn || AbstractDungeon.isFadingOut) {
+                return false;
+            }
+
+            // Check fade timer (covers transitions the flags might miss)
+            if (AbstractDungeon.fadeTimer > 0) {
+                return false;
+            }
+
+            // Check for screen swap in progress
+            if (AbstractDungeon.screenSwap) {
+                return false;
+            }
+
+            // Check if waiting on fade out
+            if (AbstractDungeon.waitingOnFadeOut) {
+                return false;
+            }
+
+            // Check room wait timer
+            if (AbstractRoom.waitTimer > 0) {
+                return false;
+            }
+
+            // Check if current room exists and has an event with wait timer
+            AbstractRoom currentRoom = AbstractDungeon.getCurrRoom();
+            if (currentRoom != null) {
+                if ((currentRoom instanceof EventRoom || currentRoom instanceof NeowRoom)
+                        && currentRoom.event != null
+                        && currentRoom.event.waitTimer > 0) {
+                    return false;
+                }
+            }
         }
 
-        // Check for visual effects in progress
-        if (AbstractDungeon.effectList != null && !AbstractDungeon.effectList.isEmpty()) {
-            return false;
-        }
-        if (AbstractDungeon.effectsQueue != null && !AbstractDungeon.effectsQueue.isEmpty()) {
-            return false;
-        }
-        if (AbstractDungeon.topLevelEffects != null && !AbstractDungeon.topLevelEffects.isEmpty()) {
-            return false;
-        }
-        if (AbstractDungeon.topLevelEffectsQueue != null && !AbstractDungeon.topLevelEffectsQueue.isEmpty()) {
-            return false;
-        }
-
-        // Check room wait timer
-        if (AbstractRoom.waitTimer > 0) {
+        // Check CardCrawlGame screen timer (applies both in and out of dungeon)
+        if (CardCrawlGame.screenTimer > 0) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Starts the visual stability wait timer.
+     */
+    public static void startVisualStableWait() {
+        visualStableWaitStartTime = System.currentTimeMillis();
+    }
+
+    /**
+     * Checks if the visual stability wait has timed out.
+     * @return true if more than 30 seconds have elapsed since startVisualStableWait()
+     */
+    public static boolean hasVisualStableWaitTimedOut() {
+        if (visualStableWaitStartTime == 0) {
+            return false;
+        }
+        return (System.currentTimeMillis() - visualStableWaitStartTime) > VISUAL_STABLE_TIMEOUT_MS;
+    }
+
+    /**
+     * Clears the visual stability wait timer.
+     */
+    public static void clearVisualStableWait() {
+        visualStableWaitStartTime = 0;
+    }
+
+    /**
+     * Sets an error message to be included in the next response.
+     */
+    public static void setError(String error) {
+        lastError = error;
+    }
+
+    /**
+     * Gets and clears the last error message.
+     * @return the error message, or null if none
+     */
+    public static String getAndClearError() {
+        String error = lastError;
+        lastError = null;
+        return error;
+    }
+
+    /**
+     * @return true if there is a pending error
+     */
+    public static boolean hasError() {
+        return lastError != null;
     }
 
     /**
