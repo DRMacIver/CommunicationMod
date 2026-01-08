@@ -62,6 +62,11 @@ public class GameStateConverter {
         if (error != null) {
             response.put("error", error);
         }
+        // Include message if present (used by commands to return data)
+        String message = GameStateListener.getAndClearMessage();
+        if (message != null) {
+            response.put("message", message);
+        }
         Gson gson = new Gson();
         return gson.toJson(response);
     }

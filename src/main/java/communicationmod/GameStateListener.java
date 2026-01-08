@@ -44,6 +44,10 @@ public class GameStateListener {
     // Error message to include in next response (cleared after sending)
     private static String lastError = null;
 
+    // Message to include in next response (cleared after sending)
+    // Used by commands to return data to the client
+    private static String lastMessage = null;
+
     // Force ready_for_command=true on next state send (for commands like arena_back)
     private static boolean forceReadyOnNextSend = false;
 
@@ -371,6 +375,24 @@ public class GameStateListener {
      */
     public static boolean hasError() {
         return lastError != null;
+    }
+
+    /**
+     * Sets a message to be included in the next response.
+     * Used by commands to return data (like loadout lists) to the client.
+     */
+    public static void setMessage(String message) {
+        lastMessage = message;
+    }
+
+    /**
+     * Gets and clears the last message.
+     * @return the message, or null if none
+     */
+    public static String getAndClearMessage() {
+        String message = lastMessage;
+        lastMessage = null;
+        return message;
     }
 
     /**
