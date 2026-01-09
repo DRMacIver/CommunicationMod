@@ -129,14 +129,23 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
     }
 
     public void receivePostUpdate() {
+        boolean stateChanged = false;
+
         // If waiting for a specific condition, check it but don't let regular state changes interfere
         if (GameStateListener.isWaitingForCondition()) {
             if (GameStateListener.checkWaitConditionMet()) {
                 mustSendGameState = true;
+                stateChanged = true;
             }
             // Note: explicit 'state' commands set mustSendGameState=true directly,
             // so they still work even while waiting (we don't suppress them)
         } else if (!mustSendGameState && GameStateListener.checkForMenuStateChange()) {
+            mustSendGameState = true;
+            stateChanged = true;
+        }
+
+        // Check for stable-state timeout (game stuck in non-ready state)
+        if (!mustSendGameState && GameStateListener.checkForStableStateTimeout(stateChanged)) {
             mustSendGameState = true;
         }
 
@@ -150,13 +159,22 @@ public class CommunicationMod implements PostInitializeSubscriber, PostUpdateSub
     }
 
     public void receivePostDungeonUpdate() {
+        boolean stateChanged = false;
+
         // If waiting for a specific condition, ONLY check that condition
         // Don't let regular state changes interfere
         if (GameStateListener.isWaitingForCondition()) {
             if (GameStateListener.checkWaitConditionMet()) {
                 mustSendGameState = true;
+                stateChanged = true;
             }
         } else if (GameStateListener.checkForDungeonStateChange()) {
+            mustSendGameState = true;
+            stateChanged = true;
+        }
+
+        // Check for stable-state timeout (game stuck in non-ready state)
+        if (!mustSendGameState && GameStateListener.checkForStableStateTimeout(stateChanged)) {
             mustSendGameState = true;
         }
 

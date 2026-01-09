@@ -41,6 +41,14 @@ public class GameStateListener {
     private static long visualStableWaitStartTime = 0;
     private static final long VISUAL_STABLE_TIMEOUT_MS = 30000; // 30 seconds
 
+    // Timeout tracking for stable-state detection (ready_for_command)
+    // If waitingForCommand stays false for too long while the game appears stable,
+    // we report an error instead of making the client wait forever
+    private static long commandWaitStartTime = 0;
+    private static final long COMMAND_WAIT_TIMEOUT_MS = 60000; // 60 seconds
+    private static int stableStateCounter = 0; // Counter for consecutive stable frames
+    private static final int STABLE_STATE_THRESHOLD = 30; // ~0.5 seconds at 60fps
+
     // Error message to include in next response (cleared after sending)
     private static String lastError = null;
 
@@ -69,10 +77,13 @@ public class GameStateListener {
     }
 
     /**
-     * Used to indicate that an external command has been executed
+     * Used to indicate that an external command has been executed.
+     * Starts the command wait timeout timer.
      */
     public static void registerCommandExecution() {
         waitingForCommand = false;
+        commandWaitStartTime = System.currentTimeMillis();
+        stableStateCounter = 0;
     }
 
     /**
@@ -134,6 +145,8 @@ public class GameStateListener {
         waitCondition = WaitCondition.NONE;
         waitConditionTargetValue = false;
         forceReadyOnNextSend = false;
+        commandWaitStartTime = 0;
+        stableStateCounter = 0;
     }
 
     /**
@@ -351,6 +364,51 @@ public class GameStateListener {
      */
     public static void clearVisualStableWait() {
         visualStableWaitStartTime = 0;
+    }
+
+    /**
+     * Checks if we've been waiting for ready_for_command for too long.
+     * Called when the game state appears stable but waitingForCommand is still false.
+     *
+     * @param stateChanged whether the game state changed this frame
+     * @return true if we've been stable for too long and should timeout
+     */
+    public static boolean checkForStableStateTimeout(boolean stateChanged) {
+        // If we're already ready, no timeout needed
+        if (waitingForCommand) {
+            commandWaitStartTime = 0;
+            stableStateCounter = 0;
+            return false;
+        }
+
+        // If state changed, reset stable counter
+        if (stateChanged) {
+            stableStateCounter = 0;
+            return false;
+        }
+
+        // Increment stable counter
+        stableStateCounter++;
+
+        // If not stable for long enough, no timeout yet
+        if (stableStateCounter < STABLE_STATE_THRESHOLD) {
+            return false;
+        }
+
+        // Check absolute timeout
+        if (commandWaitStartTime > 0) {
+            long elapsed = System.currentTimeMillis() - commandWaitStartTime;
+            if (elapsed > COMMAND_WAIT_TIMEOUT_MS) {
+                logger.warn("Stable-state timeout after " + elapsed + "ms waiting for ready_for_command");
+                setError("Timeout: game state appears stable but never became ready for commands after " +
+                        (elapsed / 1000) + " seconds. The game may be stuck or in an unexpected state.");
+                // Set ready to true so client can receive the error
+                waitingForCommand = true;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
