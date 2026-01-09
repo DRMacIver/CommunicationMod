@@ -586,6 +586,9 @@ public class CommandExecutor {
             case "CARD_10":
                 action = InputActionSet.selectCard_10;
                 break;
+            case "ESCAPE":
+                // ESCAPE key for opening settings/pause menu - return directly
+                return com.badlogic.gdx.Input.Keys.ESCAPE;
             default:
                 action = null;
         }
