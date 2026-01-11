@@ -329,6 +329,13 @@ public class GameStateListener {
                     return false;
                 }
             }
+
+            // Check if the turn phase effect is active (shows "Player Turn X" banner)
+            // This is the main cause of the overlay issue in screenshots
+            if (AbstractDungeon.turnPhaseEffectActive) {
+                logger.info("Visual stability blocked: turnPhaseEffectActive=true");
+                return false;
+            }
         }
 
         // Check CardCrawlGame screen timer (applies both in and out of dungeon)
